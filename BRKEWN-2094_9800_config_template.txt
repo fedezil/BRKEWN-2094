@@ -1,0 +1,270 @@
+hostname MY-9800
+!
+vlan 10
+ name VLAN_WIRELESS_MGMT
+!
+interface Vlan10
+ ip address 192.168.1.200 255.255.255.0
+ no shutdown
+!
+interface TenGigabitEthernet0/1/0
+ switchport trunk native vlan 10
+ switchport mode trunk
+!
+ip route 0.0.0.0 0.0.0.0 192.168.1.1
+!
+wireless management interface Vlan10
+!
+username admin privilege 15 secret Catalyst9800OneShot
+!
+aaa new-model
+!
+aaa authentication login default local
+aaa authentication login MLIST_CONSOLE none
+aaa authentication login MLIST_LOGIN_LOCAL local
+aaa authorization exec default local 
+aaa authorization exec MLIST_EXEC_LOCAL local 
+!
+line con 0
+ exec-timeout 720 0
+ privilege level 15
+ login authentication MLIST_CONSOLE
+!
+line vty 0 50
+ exec-timeout 720 0
+ privilege level 15
+ authorization exec MLIST_EXEC_LOCAL
+ login authentication MLIST_LOGIN_LOCAL
+ transport input ssh
+!
+service tcp-keepalives-in
+service tcp-keepalives-out
+!
+no ip http server
+ip http authentication local
+ip http secure-server
+ip http secure-trustpoint CISCO_IDEVID_SUDI
+ip http client source-interface Vlan10
+!
+!!! THE FOLLOWING LINE REQUIRES A MANUAL "Y" ANSWER
+ap dot11 24ghz shutdown
+!!! THE PREVIOUS LINE REQUIRES A MANUAL "Y" ANSWER
+!
+!!! THE FOLLOWING LINE REQUIRES A MANUAL "Y" ANSWER
+ap dot11 5ghz shutdown
+!!! THE PREVIOUS LINE REQUIRES A MANUAL "Y" ANSWER
+!
+wireless country NL
+!
+ap dot11 24ghz rate RATE_11M mandatory
+ap dot11 24ghz rate RATE_1M disable
+ap dot11 24ghz rate RATE_2M disable
+ap dot11 24ghz rate RATE_5_5M disable
+ap dot11 24ghz rate RATE_6M disable
+ap dot11 24ghz rate RATE_9M disable
+ap dot11 24ghz rate RATE_12M supported
+ap dot11 24ghz rate RATE_18M supported
+ap dot11 24ghz rate RATE_24M supported
+ap dot11 24ghz rate RATE_36M supported
+ap dot11 24ghz rate RATE_48M supported
+ap dot11 24ghz rate RATE_54M supported
+!
+ap dot11 5ghz rate RATE_12M mandatory
+ap dot11 5ghz rate RATE_6M disable
+ap dot11 5ghz rate RATE_9M disable
+ap dot11 5ghz rate RATE_18M supported
+ap dot11 5ghz rate RATE_24M supported
+ap dot11 5ghz rate RATE_36M supported
+ap dot11 5ghz rate RATE_48M supported
+ap dot11 5ghz rate RATE_54M supported
+!
+no ap dot11 24ghz shutdown
+no ap dot11 5ghz shutdown
+!
+do write memory
+!
+vlan 110
+ name VLAN_EMPLOYEE
+!
+vlan 120
+ name VLAN_VOICE
+!
+vlan 130
+ name VLAN_GUEST
+!
+radius server RADIUS_SRVR_ISE
+ address ipv4 192.168.1.201 auth-port 1812 acct-port 1813
+ key Catalyst9800OneShot
+!
+aaa server radius dynamic-author
+ client 192.168.1.201 server-key Catalyst9800OneShot
+!
+aaa group server radius RADIUS_SRVR_GRP_01
+ server name RADIUS_SRVR_ISE
+ ip radius source-interface Vlan10
+!
+aaa authentication dot1x MLIST_AUTHC_1X group RADIUS_SRVR_GRP_01
+aaa authorization network MLIST_AUTHZ_NTWRK group RADIUS_SRVR_GRP_01
+!
+!!! THE FOLLOWING LINE REQUIRES A MANUAL "YES" ANSWER
+aaa accounting identity MLIST_ACCT_ID start-stop group RADIUS_SRVR_GRP_01
+!!! THE PREVIOUS LINE REQUIRES A MANUAL "YES" ANSWER
+!
+ap profile default-ap-profile
+ mgmtuser username admin password 0 Catalyst9800OneShot secret 0 Catalyst9800OneShot
+ ssh
+ syslog host 192.0.2.2
+!
+wlan WLAN_PRFL_EMPLOYEE 1 ".:|:.:|:. Employee"
+ shutdown
+ channel-scan defer-priority 7
+ device-analytics export
+ no mu-mimo
+ no scheduler asr
+ security ft
+ security wpa akm ft dot1x
+ security dot1x authentication-list MLIST_AUTHC_1X
+ security pmf optional
+ no shutdown
+!
+wireless profile policy POLICY_PRFL_EMPLOYEE
+ shutdown
+ aaa-override
+ accounting-list MLIST_ACCT_ID
+ dhcp-tlv-caching
+ http-tlv-caching
+ ipv4 arp-proxy
+ ipv4 dhcp required
+ ipv4 flow monitor wireless-avc-basic input
+ ipv4 flow monitor wireless-avc-basic output
+ ipv6 flow monitor wireless-avc-basic-ipv6 input
+ ipv6 flow monitor wireless-avc-basic-ipv6 output
+ nac
+ radius-profiling
+ session-timeout 86400
+ vlan VLAN_EMPLOYEE
+ no shutdown
+!
+wireless tag policy POLICY_TAG_CORP
+ wlan WLAN_PRFL_EMPLOYEE policy POLICY_PRFL_EMPLOYEE
+!
+ap tag persistency enable
+!
+wireless tag site SITE_TAG_BRANCH
+ no local-site
+!
+wlan WLAN_PRFL_EMPLOYEE_FLEX 3 ".:|:.:|:. Employee"
+ shutdown
+ channel-scan defer-priority 7
+ no mu-mimo
+ no scheduler asr
+ security ft
+ security wpa akm ft dot1x
+ security dot1x authentication-list MLIST_AUTHC_1X
+ security pmf optional
+ no shutdown
+!
+wireless profile policy POLICY_PRFL_EMPLOYEE_FLEX
+ shutdown
+ aaa-override
+ accounting-list MLIST_ACCT_ID
+ no central dhcp
+ no central switching
+ dhcp-tlv-caching
+ http-tlv-caching
+ ipv4 arp-proxy
+ ipv4 dhcp required
+ ipv4 flow monitor wireless-avc-basic input
+ ipv4 flow monitor wireless-avc-basic output
+ ipv6 flow monitor wireless-avc-basic-ipv6 input
+ ipv6 flow monitor wireless-avc-basic-ipv6 output
+ nac
+ radius-profiling
+ session-timeout 86400
+ vlan 211
+ no shutdown
+!
+wireless profile flex default-flex-profile
+ native-vlan-id 20
+ vlan-name VLAN_EMPLOYEE
+  vlan-id 110
+!
+wireless tag policy POLICY_TAG_BRANCH
+ wlan WLAN_PRFL_EMPLOYEE_FLEX policy POLICY_PRFL_EMPLOYEE_FLEX
+!
+ip access-list extended ACL_LWA_INTERNAL_PORTAL
+ permit udp any any eq bootps
+ permit udp any any eq domain
+ deny ip any any
+!
+parameter-map type webauth global
+ type consent
+ virtual-ip ipv4 192.0.2.1
+ logout-window-disabled
+ webauth-http-enable
+!
+parameter-map type webauth WEBAUTH_PMAP
+ type consent
+ redirect on-success https://www.cisco.com
+ logout-window-disabled
+!
+wlan WLAN_PRFL_GUEST 2 ".:|:.:|:. Guest"
+ shutdown
+ channel-scan defer-priority 7
+ device-analytics export
+ no mu-mimo
+ no scheduler asr
+ ip access-group web ACL_LWA_INTERNAL_PORTAL
+ peer-blocking drop
+ no security ft adaptive
+ no security wpa
+ no security wpa wpa2
+ no security wpa wpa2 ciphers aes
+ no security wpa akm dot1x
+ security web-auth
+ security web-auth authentication-list MLIST_LOGIN_LOCAL
+ security web-auth parameter-map WEBAUTH_PMAP
+ no shutdown
+!
+wireless profile policy POLICY_PRFL_GUEST
+ shutdown
+ ipv4 arp-proxy
+ ipv4 dhcp required
+ ipv4 flow monitor wireless-avc-basic input
+ ipv4 flow monitor wireless-avc-basic output
+ ipv6 flow monitor wireless-avc-basic-ipv6 input
+ ipv6 flow monitor wireless-avc-basic-ipv6 output
+ session-timeout 86400
+ vlan VLAN_GUEST
+ no shutdown
+!
+wireless tag policy POLICY_TAG_CORP
+ wlan WLAN_PRFL_GUEST policy POLICY_PRFL_GUEST
+!
+wireless tag policy POLICY_TAG_BRANCH
+ wlan WLAN_PRFL_GUEST policy POLICY_PRFL_GUEST
+!
+no ap dot11 24ghz cleanair device bt-discovery
+no ap dot11 24ghz cleanair device bt-link
+!
+netconf-yang
+!
+device classifier
+!
+flow exporter wireless-local-exporter
+ destination local wlc
+!
+flow monitor wireless-avc-basic
+ exporter wireless-local-exporter
+ cache timeout active 60
+ record wireless avc basic
+!
+flow monitor wireless-avc-basic-ipv6
+ exporter wireless-local-exporter
+ cache timeout active 60
+ record wireless avc ipv6 basic
+!
+end
+!
+write memory
+
